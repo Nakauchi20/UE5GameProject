@@ -13,5 +13,13 @@ UCLASS()
 class MYEDEN3_API ACPP_PC_Base : public APlayerController
 {
 	GENERATED_BODY()
-	
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	class UInputMappingContext* DefaultMappingContext;
+
+public:
+	ACPP_PC_Base();
+
+protected:
+	virtual void BeginPlay();
 };

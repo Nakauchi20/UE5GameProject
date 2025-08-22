@@ -3,18 +3,17 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/GameModeBase.h"
-#include "CPP_GM_Base.generated.h"
+#include "GameplayEffect.h"
+#include "CPP_GE_InitializeStats.generated.h"
 
 /**
  * 
  */
 UCLASS()
-class MYEDEN3_API ACPP_GM_Base : public AGameModeBase
+class MYEDEN3_API UCPP_GE_InitializeStats : public UGameplayEffect
 {
 	GENERATED_BODY()
-
+	
 public:
-
-	ACPP_GM_Base();
+	UCPP_GE_InitializeStats();
 };
