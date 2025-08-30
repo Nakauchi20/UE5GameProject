@@ -5,9 +5,9 @@
 #include "CoreMinimal.h"
 #include "AttributeSet.h"
 #include "AbilitySystemComponent.h"
-#include "Net/UnrealNetwork.h" 
 #include "CPP_PlayerAttributeSet.generated.h"
 
+class ACPP_CharacterBase;
 
 // AttributeSet.hで紹介されているアトリビュートへのSetter,Getter定義マクロ
 #define ATTRIBUTE_ACCESSORS(ClassName, PropertyName) \
@@ -23,39 +23,55 @@ class MYEDEN3_API UCPP_PlayerAttributeSet : public UAttributeSet
 	GENERATED_BODY()
 
 public:
-	// 初期値設定用コンストラクタ定義
 	UCPP_PlayerAttributeSet();
 
 	/** レプリケーション設定 */
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
-
-	/** エフェクトによりアトリビュートが変化した場合のPost処理。主にUE5で直接管理しているメンバへの書き戻しを行う　*/
 	virtual void PostGameplayEffectExecute(const struct FGameplayEffectModCallbackData& Data) override;
 
 
-	// MaxSpeed - レプリケーション対応
+	// MaxSpeed
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Attributes", ReplicatedUsing = OnRep_MaxSpeed)
 	FGameplayAttributeData MaxSpeed;
 	ATTRIBUTE_ACCESSORS(UCPP_PlayerAttributeSet, MaxSpeed);
-		FGameplayAttribute MaxSpeedAttribute();
-    UFUNCTION()		// レプリケーション通知関数
-    void OnRep_MaxSpeed(const FGameplayAttributeData& OldMaxSpeed);
+
+	UFUNCTION()
+	void OnRep_MaxSpeed(const FGameplayAttributeData& OldMaxSpeed);
+
+	// MaxSpeedCrouch
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Attributes", ReplicatedUsing = OnRep_MaxSpeedCrouch)
+	FGameplayAttributeData MaxSpeedCrouch;
+	ATTRIBUTE_ACCESSORS(UCPP_PlayerAttributeSet, MaxSpeedCrouch);
+
+	UFUNCTION()
+	void OnRep_MaxSpeedCrouch(const FGameplayAttributeData& OldMaxSpeedCrouch);
 
 
-	// MaxHealth - レプリケーション対応
+	// MaxHealth
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attributes", ReplicatedUsing = OnRep_MaxHealth)
 	FGameplayAttributeData MaxHealth;
 	ATTRIBUTE_ACCESSORS(UCPP_PlayerAttributeSet, MaxHealth)
-		FGameplayAttribute MaxHealthAttribute();
-	UFUNCTION()
+
+		UFUNCTION()
 	void OnRep_MaxHealth(const FGameplayAttributeData& OldMaxHealth);
 
 
-	// Health - レプリケーション対応
+	// Health
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attributes", ReplicatedUsing = OnRep_Health)
 	FGameplayAttributeData Health;
 	ATTRIBUTE_ACCESSORS(UCPP_PlayerAttributeSet, Health)
-		FGameplayAttribute HealthAttribute();
-	UFUNCTION()
+
+		UFUNCTION()
 	void OnRep_Health(const FGameplayAttributeData& OldHealth);
+
+	// Static attribute getters
+	static FGameplayAttribute MaxSpeedAttribute();
+	static FGameplayAttribute MaxSpeedCrouchAttribute();
+	static FGameplayAttribute MaxHealthAttribute();
+	static FGameplayAttribute HealthAttribute();
+
+private:
+	// 処理分離用ヘルパー関数
+	void NotifyCharacterOfSpeedChange(float NewSpeed, bool bIsCrouchSpeed);
+	void HandleHealthAttributeChange(const FGameplayEffectModCallbackData& Data, float DeltaValue);
 };

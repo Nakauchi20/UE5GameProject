@@ -1,19 +1,22 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Characters/CPP_CharacterBase.h"
+#include "Framework/CPP_PlayerStateBase.h"
+#include "GAS/CPP_PlayerAttributeSet.h"
+#include "Characters/CPP_CharacterMovementComponent.h"
 #include "AbilitySystemComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "GAS/CPP_GE_Damage.h"
-#include "AbilitySystemBlueprintLibrary.h"
-#include "Net/UnrealNetwork.h"
 
-ACPP_CharacterBase::ACPP_CharacterBase()
+
+ACPP_CharacterBase::ACPP_CharacterBase(const FObjectInitializer& ObjectInitializer)
+    : Super(ObjectInitializer.SetDefaultSubobjectClass<UCPP_CharacterMovementComponent>(ACharacter::CharacterMovementComponentName))
 {
     PrimaryActorTick.bCanEverTick = false;
 
-    // ƒlƒbƒgƒ[ƒNİ’è
+    // ãƒãƒƒãƒˆãƒ¯ãƒ¼ã‚¯è¨­å®š
     SetReplicateMovement(true);
     bReplicates = true;
+
 }
 
 void ACPP_CharacterBase::BeginPlay()
@@ -24,16 +27,12 @@ void ACPP_CharacterBase::BeginPlay()
 void ACPP_CharacterBase::PossessedBy(AController* NewController)
 {
     Super::PossessedBy(NewController);
-
-    // PlayerState‚ªİ’è‚³‚ê‚½Œã‚ÉAbilitySystem‚ğ‰Šú‰»
     InitializeAbilitySystem();
 }
 
 void ACPP_CharacterBase::OnRep_PlayerState()
 {
     Super::OnRep_PlayerState();
-
-    // ƒNƒ‰ƒCƒAƒ“ƒg‘¤‚ÅPlayerState‚ªƒŒƒvƒŠƒP[ƒg‚³‚ê‚½Œã‚É‰Šú‰»
     InitializeAbilitySystem();
 }
 
@@ -45,24 +44,19 @@ void ACPP_CharacterBase::InitializeAbilitySystem()
         return;
     }
 
-    // PlayerState‚ÌAbilitySystem‚ğ‰Šú‰»
     PS->InitializeAbilitySystem(this);
     bAbilitySystemInitialized = true;
-
-    // BlueprintƒCƒxƒ“ƒgŒÄ‚Ño‚µ
     OnAbilitySystemInitializedEvent();
-
-    UE_LOG(LogTemp, Log, TEXT("%s: Character Ability System Initialized"), *GetName());
 }
 
 // ============== IAbilitySystemInterface ==============
 UAbilitySystemComponent* ACPP_CharacterBase::GetAbilitySystemComponent() const
 {
-    ACPP_PlayerStateBase* PS = GetPlayerStateBase();
+    const ACPP_PlayerStateBase* PS = GetPlayerStateBase();
     return PS ? PS->GetAbilitySystemComponent() : nullptr;
 }
 
-// ============== PlayerState Helpers ==============
+// ============== Core Accessors ==============
 ACPP_PlayerStateBase* ACPP_CharacterBase::GetPlayerStateBase() const
 {
     return Cast<ACPP_PlayerStateBase>(GetPlayerState());
@@ -70,145 +64,68 @@ ACPP_PlayerStateBase* ACPP_CharacterBase::GetPlayerStateBase() const
 
 UCPP_PlayerAttributeSet* ACPP_CharacterBase::GetPlayerAttributeSet() const
 {
-    ACPP_PlayerStateBase* PS = GetPlayerStateBase();
-    return PS ? PS->GetPlayerAttributeSet() : nullptr;
+    const ACPP_PlayerStateBase* PS = GetPlayerStateBase();
+    return PS ? PS->PlayerAttributeSet : nullptr;
 }
 
-// ============== Attribute Helpers ==============
+UCPP_CharacterMovementComponent* ACPP_CharacterBase::GetCustomMovementComponent() const
+{
+    return Cast<UCPP_CharacterMovementComponent>(GetCharacterMovement());
+}
+
+// ============== Attribute Helpers - Delegate to PlayerState ==============
 float ACPP_CharacterBase::GetHealth() const
 {
-    ACPP_PlayerStateBase* PS = GetPlayerStateBase();
+    const ACPP_PlayerStateBase* PS = GetPlayerStateBase();
     return PS ? PS->GetHealth() : 0.0f;
 }
 
 float ACPP_CharacterBase::GetMaxHealth() const
 {
-    ACPP_PlayerStateBase* PS = GetPlayerStateBase();
+    const ACPP_PlayerStateBase* PS = GetPlayerStateBase();
     return PS ? PS->GetMaxHealth() : 0.0f;
 }
 
 float ACPP_CharacterBase::GetMaxSpeed() const
 {
-    ACPP_PlayerStateBase* PS = GetPlayerStateBase();
+    const ACPP_PlayerStateBase* PS = GetPlayerStateBase();
     return PS ? PS->GetMaxSpeed() : 0.0f;
+}
+
+float ACPP_CharacterBase::GetMaxSpeedCrouch() const
+{
+    const ACPP_PlayerStateBase* PS = GetPlayerStateBase();
+    return PS ? PS->GetMaxSpeedCrouch() : 0.0f;
 }
 
 float ACPP_CharacterBase::GetHealthPercentage() const
 {
-    ACPP_PlayerStateBase* PS = GetPlayerStateBase();
+    const ACPP_PlayerStateBase* PS = GetPlayerStateBase();
     return PS ? PS->GetHealthPercentage() : 0.0f;
 }
 
 bool ACPP_CharacterBase::IsLowHealth(float Threshold) const
 {
-    ACPP_PlayerStateBase* PS = GetPlayerStateBase();
+    const ACPP_PlayerStateBase* PS = GetPlayerStateBase();
     return PS ? PS->IsLowHealth(Threshold) : false;
 }
 
 // ============== Combat System ==============
 void ACPP_CharacterBase::ApplyDamageToSelf(float DamageAmount)
 {
-    if (DamageAmount <= 0.0f)
+    ACPP_PlayerStateBase* PS = GetPlayerStateBase();
+    if (PS && DamageAmount > 0.0f)
     {
-        return;
-    }
-
-    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
-    if (!ASC)
-    {
-        return;
-    }
-
-    // ƒ_ƒ[ƒW—p‚ÌGameplayEffect‚ğg—p
-    if (TSubclassOf<UGameplayEffect> DamageEffect = UCPP_GE_Damage::StaticClass())
-    {
-        FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
-        Context.AddSourceObject(this);
-
-        FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(
-            DamageEffect, 1.0f, Context
-        );
-
-        if (SpecHandle.IsValid())
-        {
-            // SetByCaller‚Åƒ_ƒ[ƒW—Ê‚ğİ’èi•‰‚Ì’l‚Åƒ_ƒ[ƒW‚ğ•\Œ»j
-            SpecHandle.Data->SetSetByCallerMagnitude(
-                FGameplayTag::RequestGameplayTag(FName("Data.Damage")),
-                -DamageAmount
-            );
-
-            ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
-        }
-    }
-
-    // ƒ_ƒ[ƒWˆ—ƒCƒxƒ“ƒg
-    HandleDamageReceived(DamageAmount, FGameplayTagContainer());
-}
-
-void ACPP_CharacterBase::ApplyDamageToTarget(AActor* TargetActor, float DamageAmount)
-{
-    if (!TargetActor || DamageAmount <= 0.0f)
-    {
-        return;
-    }
-
-    UAbilitySystemComponent* MyASC = GetAbilitySystemComponent();
-    UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
-
-    if (!MyASC || !TargetASC)
-    {
-        return;
-    }
-
-    if (TSubclassOf<UGameplayEffect> DamageEffect = UCPP_GE_Damage::StaticClass())
-    {
-        FGameplayEffectContextHandle Context = MyASC->MakeEffectContext();
-        Context.AddSourceObject(this);
-
-        FGameplayEffectSpecHandle SpecHandle = MyASC->MakeOutgoingSpec(
-            DamageEffect, 1.0f, Context
-        );
-
-        if (SpecHandle.IsValid())
-        {
-            SpecHandle.Data->SetSetByCallerMagnitude(
-                FGameplayTag::RequestGameplayTag(FName("Data.Damage")),
-                -DamageAmount
-            );
-
-            MyASC->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data.Get(), TargetASC);
-        }
+        PS->ApplyHealthChange(-DamageAmount);
     }
 }
 
 void ACPP_CharacterBase::ApplyHealingToSelf(float HealingAmount)
 {
     ACPP_PlayerStateBase* PS = GetPlayerStateBase();
-    if (PS)
+    if (PS && HealingAmount > 0.0f)
     {
         PS->ApplyHealthChange(HealingAmount);
-    }
-}
-
-// ============== Ability System Helpers ==============
-bool ACPP_CharacterBase::TryActivateAbilityByClass(TSubclassOf<UGameplayAbility> AbilityClass)
-{
-    ACPP_PlayerStateBase* PS = GetPlayerStateBase();
-    return PS ? PS->TryActivateAbilityByClass(AbilityClass) : false;
-}
-
-bool ACPP_CharacterBase::TryActivateAbilityByTag(FGameplayTag AbilityTag)
-{
-    ACPP_PlayerStateBase* PS = GetPlayerStateBase();
-    return PS ? PS->TryActivateAbilityByTag(AbilityTag) : false;
-}
-
-void ACPP_CharacterBase::ApplyGameplayEffectToSelf(TSubclassOf<UGameplayEffect> EffectClass, float Level)
-{
-    ACPP_PlayerStateBase* PS = GetPlayerStateBase();
-    if (PS)
-    {
-        PS->ApplyGameplayEffectToSelf(EffectClass, Level);
     }
 }
 
@@ -222,24 +139,20 @@ void ACPP_CharacterBase::HandleDeath()
 
     bIsDead = true;
 
-    // ˆÚ“®‚ğ’â~
+    // ç§»å‹•åœæ­¢
     if (UCharacterMovementComponent* MovementComp = GetCharacterMovement())
     {
         MovementComp->StopMovementImmediately();
         MovementComp->DisableMovement();
     }
 
-    // ‘SƒAƒrƒŠƒeƒB‚ğƒLƒƒƒ“ƒZƒ‹
-    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
-    if (ASC)
+    // å…¨ã‚¢ãƒ“ãƒªãƒ†ã‚£ã‚­ãƒ£ãƒ³ã‚»ãƒ«
+    if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
     {
         ASC->CancelAllAbilities();
     }
 
-    // BlueprintƒCƒxƒ“ƒgŒÄ‚Ño‚µ
     OnDeathEvent();
-
-    UE_LOG(LogTemp, Warning, TEXT("%s has died!"), *GetName());
 }
 
 void ACPP_CharacterBase::HandleDamageReceived(float DamageAmount, const FGameplayTagContainer& SourceTags)
@@ -249,23 +162,59 @@ void ACPP_CharacterBase::HandleDamageReceived(float DamageAmount, const FGamepla
         return;
     }
 
-    // BlueprintƒCƒxƒ“ƒgŒÄ‚Ño‚µ
     OnDamageReceivedEvent(DamageAmount, SourceTags);
 
-    // ‘Ì—Í‚ª0ˆÈ‰º‚É‚È‚Á‚½‚ç€–Sˆ—
     if (GetHealth() <= 0.0f)
     {
         HandleDeath();
     }
-
-    UE_LOG(LogTemp, Log, TEXT("%s received %.2f damage"), *GetName(), DamageAmount);
 }
 
 void ACPP_CharacterBase::HandleMaxSpeedChanged(float NewSpeed)
 {
-    if (UCharacterMovementComponent* MovementComp = GetCharacterMovement())
+    #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
+    UE_LOG(LogTemp, Warning, TEXT("HandleMaxSpeedChanged called with NewSpeed: %.2f"), NewSpeed);
+    #endif
+
+    UCPP_CharacterMovementComponent* CustomMovement = GetCustomMovementComponent();
+    if (!CustomMovement)
     {
-        MovementComp->MaxWalkSpeed = NewSpeed;
-        UE_LOG(LogTemp, Log, TEXT("%s max speed changed to %.2f"), *GetName(), NewSpeed);
+        // MovementComponentãŒæº–å‚™ã§ãã¦ã„ãªã„å ´åˆã€å°‘ã—é…ã‚‰ã›ã¦å†è©¦è¡Œ
+        FTimerHandle TimerHandle;
+        GetWorld()->GetTimerManager().SetTimer(TimerHandle, [this, NewSpeed]()
+        {
+            if (UCPP_CharacterMovementComponent* DelayedCustomMovement = GetCustomMovementComponent())
+            {
+                DelayedCustomMovement->SetMaxSpeedWalk(NewSpeed);
+                DelayedCustomMovement->UpdateDirectionalSpeed();
+                
+                #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
+                UE_LOG(LogTemp, Warning, TEXT("Deferred speed update successful: %.2f"), NewSpeed);
+                #endif
+            }
+        }, 0.1f, false);
+        return;
+    }
+        #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
+    UE_LOG(LogTemp, Warning, TEXT("Before update - MaxSpeedWalk: %.2f, MaxWalkSpeed: %.2f"), 
+        CustomMovement->GetMaxSpeedWalk(), CustomMovement->GetMaxSpeed());
+    #endif
+    
+    CustomMovement->SetMaxSpeedWalk(NewSpeed);
+    CustomMovement->UpdateDirectionalSpeed();
+    
+    #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
+    UE_LOG(LogTemp, Warning, TEXT("After update - MaxSpeedWalk: %.2f, MaxWalkSpeed: %.2f"), 
+        CustomMovement->GetMaxSpeedWalk(), CustomMovement->GetMaxSpeed());
+    #endif
+}
+
+void ACPP_CharacterBase::HandleMaxSpeedCrouchChanged(float NewSpeedCrouch)
+{
+    // ã—ã‚ƒãŒã¿é€Ÿåº¦å¤‰æ›´æ™‚ã¯å³åº§ã«æ›´æ–°
+    UCPP_CharacterMovementComponent* CustomMovement = GetCustomMovementComponent();
+    if (CustomMovement && CustomMovement->IsCrouching())
+    {
+        CustomMovement->UpdateDirectionalSpeed();
     }
 }

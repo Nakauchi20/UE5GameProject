@@ -26,7 +26,7 @@ UCPP_GE_InitializeStats::UCPP_GE_InitializeStats()
 	// Speed èâä˙ílÇÃModifier
 	FGameplayModifierInfo SpeedMod;
 	SpeedMod.Attribute = UCPP_PlayerAttributeSet::GetMaxSpeedAttribute();
-	SpeedMod.ModifierOp = EGameplayModOp::Additive;
+	SpeedMod.ModifierOp = EGameplayModOp::Override;
 	SpeedMod.ModifierMagnitude = FScalableFloat(600.0f);
 	Modifiers.Add(SpeedMod);
 

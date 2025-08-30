@@ -2,67 +2,63 @@
 
 
 #include "GAS/CPP_PlayerAttributeSet.h"
-#include "GameplayEffect.h"
-#include "GameplayEffectExtension.h"		// PostGameplayEffectExecuteのContextデータなどを扱うのに必要
 #include "Characters/CPP_CharacterBase.h"
+#include "GameplayEffect.h"
+#include "GameplayEffectExtension.h"
 #include "Net/UnrealNetwork.h"
+#include "GameFramework/PlayerState.h"
+#include "GameFramework/Pawn.h" 
+#include "Characters/CPP_CharacterMovementComponent.h"
 
 
-/** コンストラクタにより初期値設定 */
 UCPP_PlayerAttributeSet::UCPP_PlayerAttributeSet()
-    : MaxSpeed(600.0f)
+    : MaxSpeed(600.0f), MaxSpeedCrouch(200.0f)
     , MaxHealth(100.0f), Health(100.0f)
 {
 }
 
-// レプリケーション設定
 void UCPP_PlayerAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
     DOREPLIFETIME_CONDITION_NOTIFY(UCPP_PlayerAttributeSet, MaxSpeed, COND_None, REPNOTIFY_Always);
+    DOREPLIFETIME_CONDITION_NOTIFY(UCPP_PlayerAttributeSet, MaxSpeedCrouch, COND_None, REPNOTIFY_Always);
     DOREPLIFETIME_CONDITION_NOTIFY(UCPP_PlayerAttributeSet, MaxHealth, COND_None, REPNOTIFY_Always);
     DOREPLIFETIME_CONDITION_NOTIFY(UCPP_PlayerAttributeSet, Health, COND_None, REPNOTIFY_Always);
 }
 
-// MaxSpeed レプリケーション通知
+
 void UCPP_PlayerAttributeSet::OnRep_MaxSpeed(const FGameplayAttributeData& OldMaxSpeed)
 {
     GAMEPLAYATTRIBUTE_REPNOTIFY(UCPP_PlayerAttributeSet, MaxSpeed, OldMaxSpeed);
-
-    // クライアント側でも速度更新を実行
-    if (AActor* Owner = GetOwningActor())
-    {
-        if (ACPP_CharacterBase* Character = Cast<ACPP_CharacterBase>(Owner))
-        {
-            Character->HandleMaxSpeedChanged(GetMaxSpeed());
-            UE_LOG(LogTemp, Warning, TEXT("Client: MaxSpeed replicated to %.2f"), GetMaxSpeed());
-        }
-    }
+    NotifyCharacterOfSpeedChange(GetMaxSpeed(), false);
 }
 
-// MaxHealth レプリケーション通知
+void UCPP_PlayerAttributeSet::OnRep_MaxSpeedCrouch(const FGameplayAttributeData& OldMaxSpeedCrouch)
+{
+    GAMEPLAYATTRIBUTE_REPNOTIFY(UCPP_PlayerAttributeSet, MaxSpeedCrouch, OldMaxSpeedCrouch);
+    NotifyCharacterOfSpeedChange(GetMaxSpeedCrouch(), true);
+}
+
 void UCPP_PlayerAttributeSet::OnRep_MaxHealth(const FGameplayAttributeData& OldMaxHealth)
 {
     GAMEPLAYATTRIBUTE_REPNOTIFY(UCPP_PlayerAttributeSet, MaxHealth, OldMaxHealth);
-
-    UE_LOG(LogTemp, Log, TEXT("MaxHealth replicated: %.2f -> %.2f"),
-        OldMaxHealth.GetCurrentValue(), GetMaxHealth());
 }
 
-// Health レプリケーション通知
 void UCPP_PlayerAttributeSet::OnRep_Health(const FGameplayAttributeData& OldHealth)
 {
     GAMEPLAYATTRIBUTE_REPNOTIFY(UCPP_PlayerAttributeSet, Health, OldHealth);
-
-    UE_LOG(LogTemp, Log, TEXT("Health replicated: %.2f -> %.2f"),
-        OldHealth.GetCurrentValue(), GetHealth());
 }
 
-// アトリビュート型取得関数
 FGameplayAttribute UCPP_PlayerAttributeSet::MaxSpeedAttribute()
 {
     static FProperty* Property = FindFieldChecked<FProperty>(UCPP_PlayerAttributeSet::StaticClass(), GET_MEMBER_NAME_CHECKED(UCPP_PlayerAttributeSet, MaxSpeed));
+    return FGameplayAttribute(Property);
+}
+
+FGameplayAttribute UCPP_PlayerAttributeSet::MaxSpeedCrouchAttribute()
+{
+    static FProperty* Property = FindFieldChecked<FProperty>(UCPP_PlayerAttributeSet::StaticClass(), GET_MEMBER_NAME_CHECKED(UCPP_PlayerAttributeSet, MaxSpeedCrouch));
     return FGameplayAttribute(Property);
 }
 
@@ -78,85 +74,157 @@ FGameplayAttribute UCPP_PlayerAttributeSet::HealthAttribute()
     return FGameplayAttribute(Property);
 }
 
-
-
 //GameplayEffect によって属性が変化した後に呼び出されます。
 void UCPP_PlayerAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data)
 {
     Super::PostGameplayEffectExecute(Data);
 
-    // 受け取ったデータから各種情報を取得
-    FGameplayEffectContextHandle Context = Data.EffectSpec.GetContext();
-    UAbilitySystemComponent* Source = Context.GetOriginalInstigatorAbilitySystemComponent();
-    const FGameplayTagContainer& SourceTags = *Data.EffectSpec.CapturedSourceTags.GetAggregatedTags();
+    const FGameplayAttribute& Attribute = Data.EvaluatedData.Attribute;
 
-    // GameplayEffectにより指定されたアトリビュート変化値を計算
-    float DeltaValue = 0;
-    if (Data.EvaluatedData.ModifierOp == EGameplayModOp::Type::Additive)
+    if (Attribute == MaxSpeedAttribute())
     {
-        DeltaValue = Data.EvaluatedData.Magnitude;
+        #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
+        UE_LOG(LogTemp, Warning, TEXT("MaxSpeed changed to: %.2f"), GetMaxSpeed());
+        #endif
+        NotifyCharacterOfSpeedChange(GetMaxSpeed(), false);
     }
-
-    // 受け取ったデータからターゲットアクター、コントローラ、キャラクタの取得
-    AActor* TargetActor = nullptr;
-    AController* TargetController = nullptr;
-    ACPP_CharacterBase* TargetCharacter = nullptr;
-    if (Data.Target.AbilityActorInfo.IsValid() && Data.Target.AbilityActorInfo->AvatarActor.IsValid())
+    else if (Attribute == MaxSpeedCrouchAttribute())
     {
-        TargetActor = Data.Target.AbilityActorInfo->AvatarActor.Get();
-        TargetController = Data.Target.AbilityActorInfo->PlayerController.Get();
-        TargetCharacter = Cast<ACPP_CharacterBase>(TargetActor);
+        #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
+        UE_LOG(LogTemp, Warning, TEXT("MaxSpeedCrouch changed to: %.2f"), GetMaxSpeedCrouch());
+        #endif
+        NotifyCharacterOfSpeedChange(GetMaxSpeedCrouch(), true);
     }
-
-    //MaxSpeed属性の処理
-    if (Data.EvaluatedData.Attribute == MaxSpeedAttribute())
+    else if (Attribute == HealthAttribute())
     {
-        if (TargetCharacter)
+        float DeltaValue = 0.0f;
+        if (Data.EvaluatedData.ModifierOp == EGameplayModOp::Type::Additive)
         {
-            float NewSpeed = GetMaxSpeed(); // 現在値を取得
-            TargetCharacter->HandleMaxSpeedChanged(NewSpeed);
-            UE_LOG(LogTemp, Warning, TEXT("MaxSpeed attribute value: %.2f"), NewSpeed);
+            DeltaValue = Data.EvaluatedData.Magnitude;
         }
+        HandleHealthAttributeChange(Data, DeltaValue);
     }
-
-    // Health属性の処理（ダメージ/回復処理）
-    if (Data.EvaluatedData.Attribute == GetHealthAttribute())
+    else if (Attribute == MaxHealthAttribute())
     {
-        // 変更前のHealth値を記録
-        float PreviousHealth = GetHealth() - DeltaValue;
-
-        // Health を 0 ～ MaxHealth に制限
-        float NewHealth = FMath::Clamp(GetHealth(), 0.0f, GetMaxHealth());
-        SetHealth(NewHealth);
-
-        // ダメージを受けた場合の処理（Healthが減少した場合）
-        if (DeltaValue < 0.0f && TargetCharacter && !TargetCharacter->IsDead())
-        {
-            float ActualDamage = FMath::Abs(DeltaValue);
-            TargetCharacter->HandleDamageReceived(ActualDamage, SourceTags);
-        }
-
-        // 死亡判定
-        if (GetHealth() <= 0.0f && PreviousHealth > 0.0f)
-        {
-            if (TargetCharacter && !TargetCharacter->IsDead())
-            {
-                TargetCharacter->HandleDeath();
-            }
-        }
-
-        // デバッグログ
-        UE_LOG(LogTemp, Warning, TEXT("Health changed: %.2f -> %.2f (Delta: %.2f)"),
-            PreviousHealth, GetHealth(), DeltaValue);
-    }
-
-    // MaxHealth属性の処理
-    if (Data.EvaluatedData.Attribute == GetMaxHealthAttribute())
-    {
-        // MaxHealthが変更された場合、現在のHealthも調整
+        // MaxHealth変更時にHealthを調整
         if (GetHealth() > GetMaxHealth())
         {
             SetHealth(GetMaxHealth());
         }
+    }
+}
+
+void UCPP_PlayerAttributeSet::NotifyCharacterOfSpeedChange(float NewSpeed, bool bIsCrouchSpeed)
+{
+    #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
+    UE_LOG(LogTemp, Warning, TEXT("NotifyCharacterOfSpeedChange called: Speed=%.2f, IsCrouchSpeedAttribute=%s"), 
+        NewSpeed, bIsCrouchSpeed ? TEXT("True") : TEXT("False"));
+    #endif
+
+    if (AActor* Owner = GetOwningActor())
+    {
+        #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
+        UE_LOG(LogTemp, Warning, TEXT("Owner found: %s"), *Owner->GetName());
+        #endif
+
+        ACPP_CharacterBase* Character = nullptr;
+        
+        // PlayerStateの場合、実際のCharacterを取得する必要がある
+        if (APawn* OwnerPawn = Cast<APawn>(Owner))
+        {
+            Character = Cast<ACPP_CharacterBase>(OwnerPawn);
+            #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
+            if (Character)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Direct Character found"));
+            }
+            #endif
+        }
+        // PlayerStateを通してCharacterを取得
+        else if (APlayerState* PS = Cast<APlayerState>(Owner))
+        {
+            if (APawn* Pawn = PS->GetPawn())
+            {
+                Character = Cast<ACPP_CharacterBase>(Pawn);
+                #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
+                if (Character)
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("Character found via PlayerState"));
+                }
+                #endif
+            }
+        }
+
+        if (Character)
+        {
+            // 実際のしゃがみ状態を取得
+            bool bIsCurrentlyCrouching = false;
+            if (UCPP_CharacterMovementComponent* MovementComp = Character->GetCustomMovementComponent())
+            {
+                bIsCurrentlyCrouching = MovementComp->IsCrouching();
+            }
+
+            #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
+            UE_LOG(LogTemp, Warning, TEXT("Character crouch state - Currently crouching: %s, Attribute being changed: %s"), 
+                bIsCurrentlyCrouching ? TEXT("True") : TEXT("False"),
+                bIsCrouchSpeed ? TEXT("CrouchSpeed") : TEXT("NormalSpeed"));
+            #endif
+
+            if (bIsCrouchSpeed)
+            {
+                Character->HandleMaxSpeedCrouchChanged(NewSpeed);
+            }
+            else
+            {
+                Character->HandleMaxSpeedChanged(NewSpeed);
+            }
+        }
+        else
+        {
+            #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
+            UE_LOG(LogTemp, Error, TEXT("Failed to get Character from Owner"));
+            #endif
+        }
+    }
+    else
+    {
+        #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
+        UE_LOG(LogTemp, Error, TEXT("No Owner found for AttributeSet"));
+        #endif
+    }
+}
+
+void UCPP_PlayerAttributeSet::HandleHealthAttributeChange(const FGameplayEffectModCallbackData& Data, float DeltaValue)
+{
+    const float PreviousHealth = GetHealth() - DeltaValue;
+
+    // Health制限
+    const float NewHealth = FMath::Clamp(GetHealth(), 0.0f, GetMaxHealth());
+    SetHealth(NewHealth);
+
+    // ターゲット情報取得
+    ACPP_CharacterBase* TargetCharacter = nullptr;
+    if (Data.Target.AbilityActorInfo.IsValid() && Data.Target.AbilityActorInfo->AvatarActor.IsValid())
+    {
+        TargetCharacter = Cast<ACPP_CharacterBase>(Data.Target.AbilityActorInfo->AvatarActor.Get());
+    }
+
+    if (!TargetCharacter || TargetCharacter->IsDead())
+    {
+        return;
+    }
+
+    // ダメージ処理
+    if (DeltaValue < 0.0f)
+    {
+        const FGameplayTagContainer& SourceTags = *Data.EffectSpec.CapturedSourceTags.GetAggregatedTags();
+        const float ActualDamage = FMath::Abs(DeltaValue);
+        TargetCharacter->HandleDamageReceived(ActualDamage, SourceTags);
+    }
+
+    // 死亡判定
+    if (GetHealth() <= 0.0f && PreviousHealth > 0.0f)
+    {
+        TargetCharacter->HandleDeath();
     }
 }
