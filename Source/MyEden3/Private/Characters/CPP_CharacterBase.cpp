@@ -172,9 +172,9 @@ void ACPP_CharacterBase::HandleDamageReceived(float DamageAmount, const FGamepla
 
 void ACPP_CharacterBase::HandleMaxSpeedChanged(float NewSpeed)
 {
-    #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
+#if WITH_EDITOR || UE_BUILD_DEVELOPMENT
     UE_LOG(LogTemp, Warning, TEXT("HandleMaxSpeedChanged called with NewSpeed: %.2f"), NewSpeed);
-    #endif
+#endif
 
     UCPP_CharacterMovementComponent* CustomMovement = GetCustomMovementComponent();
     if (!CustomMovement)
@@ -182,31 +182,34 @@ void ACPP_CharacterBase::HandleMaxSpeedChanged(float NewSpeed)
         // MovementComponentが準備できていない場合、少し遅らせて再試行
         FTimerHandle TimerHandle;
         GetWorld()->GetTimerManager().SetTimer(TimerHandle, [this, NewSpeed]()
-        {
-            if (UCPP_CharacterMovementComponent* DelayedCustomMovement = GetCustomMovementComponent())
             {
-                DelayedCustomMovement->SetMaxSpeedWalk(NewSpeed);
-                DelayedCustomMovement->UpdateDirectionalSpeed();
-                
-                #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
-                UE_LOG(LogTemp, Warning, TEXT("Deferred speed update successful: %.2f"), NewSpeed);
-                #endif
-            }
-        }, 0.1f, false);
+                if (UCPP_CharacterMovementComponent* DelayedCustomMovement = GetCustomMovementComponent())
+                {
+                    DelayedCustomMovement->SetMaxSpeedWalk(NewSpeed);
+                    DelayedCustomMovement->MaxWalkSpeed = NewSpeed; // 直接設定も追加
+                    DelayedCustomMovement->UpdateDirectionalSpeed();
+
+#if WITH_EDITOR || UE_BUILD_DEVELOPMENT
+                    UE_LOG(LogTemp, Warning, TEXT("Deferred speed update successful: %.2f"), NewSpeed);
+#endif
+                }
+            }, 0.1f, false);
         return;
     }
-        #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
-    UE_LOG(LogTemp, Warning, TEXT("Before update - MaxSpeedWalk: %.2f, MaxWalkSpeed: %.2f"), 
+
+#if WITH_EDITOR || UE_BUILD_DEVELOPMENT
+    UE_LOG(LogTemp, Warning, TEXT("Before update - MaxSpeedWalk: %.2f, MaxWalkSpeed: %.2f"),
         CustomMovement->GetMaxSpeedWalk(), CustomMovement->GetMaxSpeed());
-    #endif
-    
+#endif
+
     CustomMovement->SetMaxSpeedWalk(NewSpeed);
+    CustomMovement->MaxWalkSpeed = NewSpeed; // MaxWalkSpeedも直接設定
     CustomMovement->UpdateDirectionalSpeed();
-    
-    #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
-    UE_LOG(LogTemp, Warning, TEXT("After update - MaxSpeedWalk: %.2f, MaxWalkSpeed: %.2f"), 
+
+#if WITH_EDITOR || UE_BUILD_DEVELOPMENT
+    UE_LOG(LogTemp, Warning, TEXT("After update - MaxSpeedWalk: %.2f, MaxWalkSpeed: %.2f"),
         CustomMovement->GetMaxSpeedWalk(), CustomMovement->GetMaxSpeed());
-    #endif
+#endif
 }
 
 void ACPP_CharacterBase::HandleMaxSpeedCrouchChanged(float NewSpeedCrouch)
@@ -217,4 +220,38 @@ void ACPP_CharacterBase::HandleMaxSpeedCrouchChanged(float NewSpeedCrouch)
     {
         CustomMovement->UpdateDirectionalSpeed();
     }
+}
+
+// ============== Sliding System Implementation ==============
+void ACPP_CharacterBase::OnSlidingStarted()
+{
+    // C++側での処理（必要に応じて）
+
+    // Blueprintイベントを呼び出し
+    OnSlidingStartedEvent();
+
+#if WITH_EDITOR || UE_BUILD_DEVELOPMENT
+    UE_LOG(LogTemp, Warning, TEXT("Character: Sliding Started"));
+#endif
+}
+
+void ACPP_CharacterBase::OnSlidingEnded()
+{
+    // C++側での処理（必要に応じて）
+
+    // Blueprintイベントを呼び出し
+    OnSlidingEndedEvent();
+
+#if WITH_EDITOR || UE_BUILD_DEVELOPMENT
+    UE_LOG(LogTemp, Warning, TEXT("Character: Sliding Ended"));
+#endif
+}
+
+bool ACPP_CharacterBase::IsSliding() const
+{
+    if (const UCPP_CharacterMovementComponent* CustomMovement = GetCustomMovementComponent())
+    {
+        return CustomMovement->IsSliding();
+    }
+    return false;
 }

@@ -88,6 +88,16 @@ public:
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Status")
     bool IsAlive() const { return !bIsDead; }
 
+    // ============== Sliding System ==============
+    UFUNCTION(BlueprintCallable, Category = "Sliding")
+    void OnSlidingStarted();
+
+    UFUNCTION(BlueprintCallable, Category = "Sliding")
+    void OnSlidingEnded();
+
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Sliding")
+    bool IsSliding() const;
+
 protected:
 
     UPROPERTY(BlueprintReadOnly, Category = "Status")
@@ -108,6 +118,13 @@ protected:
 
     UFUNCTION(BlueprintImplementableEvent, Category = "Abilities")
     void OnAbilitySystemInitializedEvent();
+
+    // ============== Sliding Blueprint Events ==============
+    UFUNCTION(BlueprintImplementableEvent, Category = "Sliding")
+    void OnSlidingStartedEvent();
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "Sliding")
+    void OnSlidingEndedEvent();
 
 private:
 
