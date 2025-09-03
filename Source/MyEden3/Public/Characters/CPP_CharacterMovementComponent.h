@@ -64,6 +64,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sliding", meta = (ClampMin = "0.0", ClampMax = "0.01"))
     float AirResistanceRate = 0.001f;
 
+    UPROPERTY(EditAnywhere, Category = "Sliding")
+    bool bEnableSlidingBoost = false;
+
     // ============== Public Interface ==============
     UFUNCTION(BlueprintCallable, Category = "Custom Movement")
     void SetMaxSpeedWalk(float NewSpeed);
@@ -76,6 +79,12 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Custom Movement")
     void UpdateDirectionalSpeed();
+
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Movement")
+    bool CanStandUp() const;
+
+    UFUNCTION(BlueprintCallable, Category = "Movement")
+    void ForceEndSliding();
 
     // ============== Sliding Interface ==============
     UFUNCTION(BlueprintCallable, Category = "Sliding")
@@ -90,8 +99,8 @@ public:
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Sliding")
     bool IsSliding() const { return bIsSliding; }
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sliding", meta = (ClampMin = "1.0", ClampMax = "2.0"))
-    float GroundSlidingInitialBoost = 1.2f;
+    UFUNCTION(BlueprintCallable, Category = "Movement")
+    void RequestUnCrouch();
 
 #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
     UFUNCTION(BlueprintCallable, Category = "Debug")
@@ -122,9 +131,6 @@ private:
     UPROPERTY()
     bool bCrouchInputPressed = false;
 
-    UPROPERTY()
-    bool bStartedSlidingOnGround = false;
-
     float OriginalCapsuleHalfHeight = 0.0f;
 
     // Internal helper functions
@@ -141,4 +147,13 @@ private:
     void RestoreOriginalCapsuleHeight();
     bool CanRestoreCapsuleHeight() const;
     bool GetGroundInfo(FHitResult& OutHit) const;
+    void HandleCrouchPressed();
+    void HandleCrouchReleased();
+    void HandleLanding();
+    void HandleLeavingGround();
+    void RestoreSlidingVelocity();
+    void EndSlidingTransition(bool bIsAirborne);
+    void NotifyCharacterSlidingEnded();
+    void HandleStandUpTransition();
+    void SetCapsuleHeightForCrouch();
 };

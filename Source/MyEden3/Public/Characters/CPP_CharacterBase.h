@@ -45,6 +45,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Movement")
     UCPP_CharacterMovementComponent* GetCustomMovementComponent() const;
 
+    UFUNCTION(BlueprintCallable, Category = "Movement")
+    void ForceStandUp();
+
     // ============== Attribute Helpers ==============
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Attributes")
     float GetHealth() const;

@@ -27,7 +27,6 @@ void UCPP_PlayerAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimePropert
     DOREPLIFETIME_CONDITION_NOTIFY(UCPP_PlayerAttributeSet, Health, COND_None, REPNOTIFY_Always);
 }
 
-
 void UCPP_PlayerAttributeSet::OnRep_MaxSpeed(const FGameplayAttributeData& OldMaxSpeed)
 {
     GAMEPLAYATTRIBUTE_REPNOTIFY(UCPP_PlayerAttributeSet, MaxSpeed, OldMaxSpeed);
@@ -116,29 +115,14 @@ void UCPP_PlayerAttributeSet::PostGameplayEffectExecute(const FGameplayEffectMod
 
 void UCPP_PlayerAttributeSet::NotifyCharacterOfSpeedChange(float NewSpeed, bool bIsCrouchSpeed)
 {
-    #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
-    UE_LOG(LogTemp, Warning, TEXT("NotifyCharacterOfSpeedChange called: Speed=%.2f, IsCrouchSpeedAttribute=%s"), 
-        NewSpeed, bIsCrouchSpeed ? TEXT("True") : TEXT("False"));
-    #endif
-
     if (AActor* Owner = GetOwningActor())
     {
-        #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
-        UE_LOG(LogTemp, Warning, TEXT("Owner found: %s"), *Owner->GetName());
-        #endif
-
         ACPP_CharacterBase* Character = nullptr;
         
         // PlayerState‚Ìê‡AÀÛ‚ÌCharacter‚ğæ“¾‚·‚é•K—v‚ª‚ ‚é
         if (APawn* OwnerPawn = Cast<APawn>(Owner))
         {
             Character = Cast<ACPP_CharacterBase>(OwnerPawn);
-            #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
-            if (Character)
-            {
-                UE_LOG(LogTemp, Warning, TEXT("Direct Character found"));
-            }
-            #endif
         }
         // PlayerState‚ğ’Ê‚µ‚ÄCharacter‚ğæ“¾
         else if (APlayerState* PS = Cast<APlayerState>(Owner))
@@ -146,12 +130,6 @@ void UCPP_PlayerAttributeSet::NotifyCharacterOfSpeedChange(float NewSpeed, bool 
             if (APawn* Pawn = PS->GetPawn())
             {
                 Character = Cast<ACPP_CharacterBase>(Pawn);
-                #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
-                if (Character)
-                {
-                    UE_LOG(LogTemp, Warning, TEXT("Character found via PlayerState"));
-                }
-                #endif
             }
         }
 
@@ -164,12 +142,6 @@ void UCPP_PlayerAttributeSet::NotifyCharacterOfSpeedChange(float NewSpeed, bool 
                 bIsCurrentlyCrouching = MovementComp->IsCrouching();
             }
 
-            #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
-            UE_LOG(LogTemp, Warning, TEXT("Character crouch state - Currently crouching: %s, Attribute being changed: %s"), 
-                bIsCurrentlyCrouching ? TEXT("True") : TEXT("False"),
-                bIsCrouchSpeed ? TEXT("CrouchSpeed") : TEXT("NormalSpeed"));
-            #endif
-
             if (bIsCrouchSpeed)
             {
                 Character->HandleMaxSpeedCrouchChanged(NewSpeed);
@@ -179,18 +151,6 @@ void UCPP_PlayerAttributeSet::NotifyCharacterOfSpeedChange(float NewSpeed, bool 
                 Character->HandleMaxSpeedChanged(NewSpeed);
             }
         }
-        else
-        {
-            #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
-            UE_LOG(LogTemp, Error, TEXT("Failed to get Character from Owner"));
-            #endif
-        }
-    }
-    else
-    {
-        #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
-        UE_LOG(LogTemp, Error, TEXT("No Owner found for AttributeSet"));
-        #endif
     }
 }
 

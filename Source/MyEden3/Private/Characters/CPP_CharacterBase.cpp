@@ -172,10 +172,6 @@ void ACPP_CharacterBase::HandleDamageReceived(float DamageAmount, const FGamepla
 
 void ACPP_CharacterBase::HandleMaxSpeedChanged(float NewSpeed)
 {
-#if WITH_EDITOR || UE_BUILD_DEVELOPMENT
-    UE_LOG(LogTemp, Warning, TEXT("HandleMaxSpeedChanged called with NewSpeed: %.2f"), NewSpeed);
-#endif
-
     UCPP_CharacterMovementComponent* CustomMovement = GetCustomMovementComponent();
     if (!CustomMovement)
     {
@@ -188,28 +184,13 @@ void ACPP_CharacterBase::HandleMaxSpeedChanged(float NewSpeed)
                     DelayedCustomMovement->SetMaxSpeedWalk(NewSpeed);
                     DelayedCustomMovement->MaxWalkSpeed = NewSpeed; // 直接設定も追加
                     DelayedCustomMovement->UpdateDirectionalSpeed();
-
-#if WITH_EDITOR || UE_BUILD_DEVELOPMENT
-                    UE_LOG(LogTemp, Warning, TEXT("Deferred speed update successful: %.2f"), NewSpeed);
-#endif
                 }
             }, 0.1f, false);
         return;
     }
-
-#if WITH_EDITOR || UE_BUILD_DEVELOPMENT
-    UE_LOG(LogTemp, Warning, TEXT("Before update - MaxSpeedWalk: %.2f, MaxWalkSpeed: %.2f"),
-        CustomMovement->GetMaxSpeedWalk(), CustomMovement->GetMaxSpeed());
-#endif
-
     CustomMovement->SetMaxSpeedWalk(NewSpeed);
     CustomMovement->MaxWalkSpeed = NewSpeed; // MaxWalkSpeedも直接設定
     CustomMovement->UpdateDirectionalSpeed();
-
-#if WITH_EDITOR || UE_BUILD_DEVELOPMENT
-    UE_LOG(LogTemp, Warning, TEXT("After update - MaxSpeedWalk: %.2f, MaxWalkSpeed: %.2f"),
-        CustomMovement->GetMaxSpeedWalk(), CustomMovement->GetMaxSpeed());
-#endif
 }
 
 void ACPP_CharacterBase::HandleMaxSpeedCrouchChanged(float NewSpeedCrouch)
@@ -254,4 +235,25 @@ bool ACPP_CharacterBase::IsSliding() const
         return CustomMovement->IsSliding();
     }
     return false;
+}
+
+void ACPP_CharacterBase::ForceStandUp()
+{
+    UCPP_CharacterMovementComponent* CustomMovement = GetCustomMovementComponent();
+    if (!CustomMovement)
+    {
+        return;
+    }
+
+    // スライディング中の場合は停止
+    if (CustomMovement->IsSliding())
+    {
+        CustomMovement->StopSliding();
+    }
+
+    // しゃがみ状態の場合は解除
+    if (CustomMovement->IsCrouching())
+    {
+        CustomMovement->RequestUnCrouch();
+    }
 }
