@@ -11,7 +11,7 @@ ACPP_PlayerStateBase::ACPP_PlayerStateBase()
 
     SetReplicateMovement(false);
     bReplicates = true;
-    NetUpdateFrequency = 100.0f;
+    SetNetUpdateFrequency(100.0f);
 
     AbilitySystemComponent = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("AbilitySystemComponent"));
     AbilitySystemComponent->SetIsReplicated(true);

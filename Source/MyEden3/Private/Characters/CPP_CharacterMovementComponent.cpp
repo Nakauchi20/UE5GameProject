@@ -2,9 +2,12 @@
 
 
 #include "Characters/CPP_CharacterMovementComponent.h"
-#include "Characters/CPP_CharacterBase.h"
+#include "Characters/CPP_PlayerCharacter.h"
 #include "GameFramework/Character.h"
 #include "Components/CapsuleComponent.h"
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemInterface.h"
+#include "GAS/CPP_GameplayTags.h"
 
 UCPP_CharacterMovementComponent::UCPP_CharacterMovementComponent()
 {
@@ -89,6 +92,47 @@ void UCPP_CharacterMovementComponent::OnMovementModeChanged(EMovementMode Previo
 	const bool bJustLanded = (PreviousMovementMode == MOVE_Falling && IsMovingOnGround());
 	const bool bJustLeftGround = (PreviousMovementMode != MOVE_Falling && MovementMode == MOVE_Falling);
 
+	// ★ デバッグログ追加
+	UE_LOG(LogTemp, Warning, TEXT("[MovementComponent] OnMovementModeChanged - Previous: %d, Current: %d"),
+		(int32)PreviousMovementMode, (int32)MovementMode);
+	UE_LOG(LogTemp, Warning, TEXT("[MovementComponent] bJustLeftGround: %s, bJustLanded: %s"),
+		bJustLeftGround ? TEXT("TRUE") : TEXT("FALSE"),
+		bJustLanded ? TEXT("TRUE") : TEXT("FALSE"));
+
+	// ★ InAirタグの管理（PlayerCharacterのみ）
+	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(GetCharacterOwner()))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[MovementComponent] ASI found: %s"), *GetCharacterOwner()->GetName());
+
+		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[MovementComponent] ASC found: %s"), *ASC->GetName());
+
+			const FGameplayTag& InAirTag = FCPP_GameplayTags::Get().State_Movement_InAir;
+			UE_LOG(LogTemp, Warning, TEXT("[MovementComponent] InAirTag: %s"), *InAirTag.ToString());
+
+			if (bJustLeftGround)
+			{
+				ASC->AddLooseGameplayTag(InAirTag);
+				UE_LOG(LogTemp, Warning, TEXT("[MovementComponent] ★ InAir Tag ADDED"));
+			}
+			else if (bJustLanded)
+			{
+				ASC->RemoveLooseGameplayTag(InAirTag);
+				UE_LOG(LogTemp, Warning, TEXT("[MovementComponent] ★ InAir Tag REMOVED"));
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("[MovementComponent] ASC is NULL!"));
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("[MovementComponent] ASI Cast failed for: %s"),
+			GetCharacterOwner() ? *GetCharacterOwner()->GetName() : TEXT("NULL"));
+	}
+
 	if (bJustLanded)
 	{
 		HandleLanding();
@@ -143,6 +187,17 @@ void UCPP_CharacterMovementComponent::HandleLeavingGround()
 }
 
 // ============== Sliding Functions ==============
+bool UCPP_CharacterMovementComponent::TryStartSliding()
+{
+	if (!CanStartSliding())
+	{
+		return false;
+	}
+
+	StartSliding();
+	return true;
+}
+
 bool UCPP_CharacterMovementComponent::CanStartSliding() const
 {
 	const bool bAlreadySliding = bIsSliding;
@@ -169,7 +224,7 @@ void UCPP_CharacterMovementComponent::StartSliding()
 	bManualVelocityControl = true;// 手動速度制御ON
 	SlidingDirection = Velocity.GetSafeNormal();// 滑る方向を記録
 	InitialSlidingVelocity = Velocity;// 初期速度を保存
-	
+
 	//スライディング開始時に強制的にしゃがみ状態にする
 	if (!IsCrouching())
 	{
@@ -187,9 +242,21 @@ void UCPP_CharacterMovementComponent::StartSliding()
 		InitialSlidingVelocity = Velocity;  // ブースト後の速度を保存
 	}
 
-	if (ACPP_CharacterBase* Character = Cast<ACPP_CharacterBase>(GetCharacterOwner()))
+	// PlayerCharacterの場合のみスライディングタグとイベントを適用
+	if (ACPP_PlayerCharacter* PlayerCharacter = Cast<ACPP_PlayerCharacter>(GetCharacterOwner()))
 	{
-		Character->OnSlidingStarted();// Blueprintイベント発火
+		// Slidingタグを追加
+		if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(PlayerCharacter))
+		{
+			if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
+			{
+				const FGameplayTag& SlidingTag = FCPP_GameplayTags::Get().State_Movement_Sliding;
+				ASC->AddLooseGameplayTag(SlidingTag);
+				UE_LOG(LogTemp, Warning, TEXT("[MovementComponent] Sliding Tag ADDED"));
+			}
+		}
+
+		PlayerCharacter->OnSlidingStarted();// Blueprintイベント発火
 	}
 }
 
@@ -206,10 +273,21 @@ void UCPP_CharacterMovementComponent::StopSliding()
 	SlidingDirection = FVector::ZeroVector;
 	InitialSlidingVelocity = FVector::ZeroVector;
 
-	// キャラクターに通知
-	if (ACPP_CharacterBase* Character = Cast<ACPP_CharacterBase>(GetCharacterOwner()))
+	// PlayerCharacterの場合のみタグ削除と通知
+	if (ACPP_PlayerCharacter* PlayerCharacter = Cast<ACPP_PlayerCharacter>(GetCharacterOwner()))
 	{
-		Character->OnSlidingEnded();
+		// Slidingタグを削除
+		if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(PlayerCharacter))
+		{
+			if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
+			{
+				const FGameplayTag& SlidingTag = FCPP_GameplayTags::Get().State_Movement_Sliding;
+				ASC->RemoveLooseGameplayTag(SlidingTag);
+				UE_LOG(LogTemp, Warning, TEXT("[MovementComponent] Sliding Tag REMOVED"));
+			}
+		}
+
+		PlayerCharacter->OnSlidingEnded();
 	}
 
 	// 立ち上がり処理
@@ -236,7 +314,7 @@ void UCPP_CharacterMovementComponent::StopSliding()
 	}
 	else
 	{
-		// 修正：しゃがみキーが押されている場合は通常のしゃがみ状態を維持
+		//しゃがみキーが押されている場合は通常のしゃがみ状態を維持
 		SetCapsuleHeightForCrouch();
 		if (!IsCrouching())
 		{
@@ -370,6 +448,20 @@ void UCPP_CharacterMovementComponent::EndSlidingTransition(bool bIsAirborne)
 	bIsSliding = false;
 	bManualVelocityControl = false;
 
+	// PlayerCharacterの場合のみSlidingタグを削除
+	if (ACPP_PlayerCharacter* PlayerCharacter = Cast<ACPP_PlayerCharacter>(GetCharacterOwner()))
+	{
+		if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(PlayerCharacter))
+		{
+			if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
+			{
+				const FGameplayTag& SlidingTag = FCPP_GameplayTags::Get().State_Movement_Sliding;
+				ASC->RemoveLooseGameplayTag(SlidingTag);
+				UE_LOG(LogTemp, Warning, TEXT("[MovementComponent] Sliding Tag REMOVED (Air Transition)"));
+			}
+		}
+	}
+
 	// しゃがみキーが押されていない場合のみキャプセル高さを復元
 	if (!bCrouchInputPressed)
 	{
@@ -398,10 +490,10 @@ void UCPP_CharacterMovementComponent::EndSlidingTransition(bool bIsAirborne)
 
 void UCPP_CharacterMovementComponent::NotifyCharacterSlidingEnded()
 {
-	// キャラクターイベント通知
-	if (ACPP_CharacterBase* Character = Cast<ACPP_CharacterBase>(GetCharacterOwner()))
+	// PlayerCharacterの場合のみイベント通知
+	if (ACPP_PlayerCharacter* PlayerCharacter = Cast<ACPP_PlayerCharacter>(GetCharacterOwner()))
 	{
-		Character->OnSlidingEnded();
+		PlayerCharacter->OnSlidingEnded();
 	}
 }
 
@@ -695,7 +787,7 @@ void UCPP_CharacterMovementComponent::SetMaxSpeedWalk(float NewSpeed)
 	}
 	MaxSpeedWalk = ClampedSpeed;
 	UpdateDirectionalSpeed();
-	}
+}
 
 void UCPP_CharacterMovementComponent::UpdateDirectionalSpeed()
 {
@@ -729,16 +821,16 @@ void UCPP_CharacterMovementComponent::UpdateCrouchSpeed(float Multiplier)
 
 	if (const ACharacter* Character = GetCharacterOwner())
 	{
-		if (const ACPP_CharacterBase* BaseCharacter = Cast<ACPP_CharacterBase>(Character))
+		// PlayerCharacterまたはEnemyCharacterからGAS値を取得
+		if (const ACPP_CharacterBase* CharacterBase = Cast<ACPP_CharacterBase>(Character))
 		{
-			const float GASValue = BaseCharacter->GetMaxSpeedCrouch();
+			const float GASValue = CharacterBase->GetMaxSpeedCrouch();
 			if (GASValue > 0.0f)
 			{
 				GASMaxSpeedCrouch = GASValue;
 			}
 		}
 	}
-
 	const float NewCrouchSpeed = GASMaxSpeedCrouch * Multiplier;
 	if (!FMath::IsNearlyEqual(MaxWalkSpeedCrouched, NewCrouchSpeed, 0.1f))
 	{

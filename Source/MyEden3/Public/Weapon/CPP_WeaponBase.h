@@ -4,7 +4,11 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "GameplayTagContainer.h"
 #include "CPP_WeaponBase.generated.h"
+
+// 前方宣言
+class UAbilitySystemComponent;
 
 UCLASS()
 class MYEDEN3_API ACPP_WeaponBase : public AActor
@@ -52,7 +56,7 @@ public:
 
 	ACPP_WeaponBase();
 
-	// === アクション関数 ===
+	// === アクション関数（GAから呼ばれる。タグ管理はGA側で行う） ===
 	UFUNCTION(BlueprintCallable, Category = "Weapon|Action")
 	void Fire();
 
@@ -62,11 +66,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Weapon|Action")
 	void Reload();
 
-	UFUNCTION(BlueprintCallable, Category = "Weapon|Action")
-	void SetReload();
+	UFUNCTION(BlueprintCallable, Category = "Weapon|Animation")
+	void OnReloadAnimationComplete();
 
-	UFUNCTION(BlueprintCallable, Category = "Weapon|Action")
-	void CancelReload();
+	UFUNCTION(BlueprintCallable, Category = "Weapon|Animation")
+	void InterruptReload();
 
 	UFUNCTION(BlueprintPure, Category = "Weapon|Components")
 	USkeletalMeshComponent* GetAttachment(const FName& AttachmentName);
@@ -79,7 +83,7 @@ public:
 	void FireOngoingAction();
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Weapon|Events")
-	void ReloadAction();
+	void PlayReloadAnimation();
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Weapon|Events")
 	void ReloadEffect();
@@ -121,6 +125,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Weapon|State")
 	FORCEINLINE bool CanFire() const { return bCanFire && !bIsReloading; }
 
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Weapon|State")
+	bool NeedsReload() const { return Ammo < MaxAmmo && (StockAmmo > 0.0f || bInfiniteStockAmmo); }
+
 	// インライン取得関数
 	FORCEINLINE USkeletalMeshComponent* GetMesh() const { return Mesh; }
 	FORCEINLINE UBoxComponent* GetBox() const { return TraceBox; }
@@ -135,10 +142,19 @@ protected:
 	void FireEffect();
 	void ConsumeAmmo();
 	bool HasAmmo() const { return Ammo > 0.0f; }
-	bool NeedsReload() const { return Ammo < MaxAmmo && StockAmmo > 0.0f; }
 	void RegenerateAmmo();
 	void StartAmmoRegeneration();
 	void StopAmmoRegeneration();
+	void RestoreConsumedAmmo();
+
+	// === GAS統合（非推奨、後方互換性のみ） ===
+	// 注意: タグ管理はGameplayAbilityで行うべきです
+	// これらの関数は古いコードとの互換性のためだけに残されています
+	void AddReloadingTag();
+	void RemoveReloadingTag();
+	void AddFiringTag();
+	void RemoveFiringTag();
+	UAbilitySystemComponent* GetOwnerAbilitySystemComponent() const;
 
 	// === タイマーハンドル ===
 	FTimerHandle FireRateTimerHandle;
@@ -150,6 +166,13 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon|State")
 	bool bIsReloading;
+
+	// リロード前の弾薬量を保存（中断時の復元用）
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon|State")
+	float AmmoBeforeReload;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon|State")
+	float StockAmmoBeforeReload;
 
 public:
 
@@ -171,10 +194,10 @@ public:
 	float StockAmmo;
 
 	// 弾薬自動回復設定
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Ammo", meta = (ClampMin = "0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Ammo")
 	bool bInfiniteStockAmmo = true;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Ammo", meta = (ClampMin = "0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Ammo")
 	bool bEnableAmmoRegeneration = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Ammo", meta = (ClampMin = "0.1"))
@@ -205,6 +228,12 @@ public:
 	// エフェクト設定
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Effects")
 	USoundBase* FireSound;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Effects")
+	USoundBase* ReloadSound;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Effects")
+	USoundBase* WeaponSwapSound;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Effects")
 	FVector MuzzleOffset;

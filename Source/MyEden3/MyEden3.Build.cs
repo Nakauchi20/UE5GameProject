@@ -7,8 +7,11 @@ public class MyEden3 : ModuleRules
 	public MyEden3(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
-	
-		PublicDependencyModuleNames.AddRange(new string[] { 
+
+        // Unity Build Çñ≥å¯âª
+        //bUseUnity = false;
+
+        PublicDependencyModuleNames.AddRange(new string[] { 
 			"Core", 
 			"CoreUObject", 
 			"Engine", 
@@ -17,13 +20,24 @@ public class MyEden3 : ModuleRules
 			"GameplayAbilities", 
 			"GameplayTags", 
 			"GameplayTasks", 
-			"AIModule" 
-		});
+			"AIModule",
+            "StateTreeModule",
+            "GameplayStateTreeModule"
+        });
 
 
 		PrivateDependencyModuleNames.AddRange(new string[] {
-
+            "Slate",
+            "SlateCore"
         });
+
+        // EQSä÷òAÇÃÉÇÉWÉÖÅ[ÉãÇí«â¡
+        if (Target.bBuildDeveloperTools ||
+            (Target.Configuration != UnrealTargetConfiguration.Shipping &&
+             Target.Configuration != UnrealTargetConfiguration.Test))
+        {
+            PrivateDependencyModuleNames.Add("AITestSuite");
+        }
 
         // Uncomment if you are using Slate UI
         // PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });

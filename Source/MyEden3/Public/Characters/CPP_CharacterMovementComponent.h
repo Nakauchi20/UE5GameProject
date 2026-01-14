@@ -6,6 +6,10 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "CPP_CharacterMovementComponent.generated.h"
 
+// 前方宣言
+class ACPP_PlayerCharacter;
+class ACPP_CharacterBase;
+
 /**
  *カスタム移動コンポーネント - 方向別速度制御とスライディング機能を提供
  */
@@ -87,6 +91,9 @@ public:
     void ForceEndSliding();
 
     // ============== Sliding Interface ==============
+    UFUNCTION(BlueprintCallable, Category = "Sliding")
+    bool TryStartSliding();
+
     UFUNCTION(BlueprintCallable, Category = "Sliding")
     bool CanStartSliding() const;
 

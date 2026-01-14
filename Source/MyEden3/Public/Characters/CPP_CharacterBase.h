@@ -7,7 +7,6 @@
 #include "CPP_CharacterBase.generated.h"
 
 // 前方宣言
-class ACPP_PlayerStateBase;
 class UCPP_PlayerAttributeSet;
 class UCPP_CharacterMovementComponent;
 class UAbilitySystemComponent;
@@ -27,8 +26,6 @@ public:
 protected:
 
     virtual void BeginPlay() override;
-    virtual void PossessedBy(AController* NewController) override;
-    virtual void OnRep_PlayerState() override;
 
 public:
 
@@ -36,17 +33,11 @@ public:
     virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
     // ============== Core Accessors ==============
-    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "PlayerState")
-    ACPP_PlayerStateBase* GetPlayerStateBase() const;
-
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Attributes")
-    UCPP_PlayerAttributeSet* GetPlayerAttributeSet() const;
+    virtual UCPP_PlayerAttributeSet* GetPlayerAttributeSet() const;
 
     UFUNCTION(BlueprintCallable, Category = "Movement")
     UCPP_CharacterMovementComponent* GetCustomMovementComponent() const;
-
-    UFUNCTION(BlueprintCallable, Category = "Movement")
-    void ForceStandUp();
 
     // ============== Attribute Helpers ==============
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Attributes")
@@ -68,8 +59,10 @@ public:
     bool IsLowHealth(float Threshold = 0.25f) const;
 
     // ============== Combat System ==============
-    UFUNCTION(BlueprintCallable, Category = "Combat")
-    void ApplyDamageToSelf(float DamageAmount);
+
+    // ダメージを受ける（内部処理用）
+    // 外部から呼ぶ場合は UCPP_CombatLibrary::ApplyDamage を使用してください
+    void ReceiveDamage(float DamageAmount, AActor* DamageCauser);
 
     UFUNCTION(BlueprintCallable, Category = "Combat")
     void ApplyHealingToSelf(float HealingAmount);
@@ -91,23 +84,28 @@ public:
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Status")
     bool IsAlive() const { return !bIsDead; }
 
-    // ============== Sliding System ==============
-    UFUNCTION(BlueprintCallable, Category = "Sliding")
-    void OnSlidingStarted();
-
-    UFUNCTION(BlueprintCallable, Category = "Sliding")
-    void OnSlidingEnded();
-
-    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Sliding")
-    bool IsSliding() const;
-
 protected:
 
     UPROPERTY(BlueprintReadOnly, Category = "Status")
     bool bIsDead = false;
 
-    UPROPERTY(BlueprintReadOnly, Category = "Status")
-    bool bAbilitySystemInitialized = false;
+    // ============== Death Animation & Ragdoll ==============
+    UPROPERTY(EditDefaultsOnly, Category = "Animation")
+    UAnimMontage* DeathMontage;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Death")
+    float RagdollDuration = 3.0f;
+
+    FTimerHandle DestroyTimerHandle;
+    FTimerHandle DeathMontageTimeoutHandle;
+
+    UFUNCTION()
+    void OnDeathMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+
+    UFUNCTION()
+    void OnDeathMontageBlendingOut(UAnimMontage* Montage, bool bInterrupted);
+
+    void StartRagdoll();
 
     // ============== Blueprint Events ==============
     UFUNCTION(BlueprintImplementableEvent, Category = "Status")
@@ -118,18 +116,4 @@ protected:
 
     UFUNCTION(BlueprintImplementableEvent, Category = "Attributes")
     void OnHealthChangedEvent(float OldHealth, float NewHealth);
-
-    UFUNCTION(BlueprintImplementableEvent, Category = "Abilities")
-    void OnAbilitySystemInitializedEvent();
-
-    // ============== Sliding Blueprint Events ==============
-    UFUNCTION(BlueprintImplementableEvent, Category = "Sliding")
-    void OnSlidingStartedEvent();
-
-    UFUNCTION(BlueprintImplementableEvent, Category = "Sliding")
-    void OnSlidingEndedEvent();
-
-private:
-
-    void InitializeAbilitySystem();
 };

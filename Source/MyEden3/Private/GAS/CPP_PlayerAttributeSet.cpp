@@ -1,6 +1,5 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "GAS/CPP_PlayerAttributeSet.h"
 #include "Characters/CPP_CharacterBase.h"
 #include "GameplayEffect.h"
@@ -9,7 +8,6 @@
 #include "GameFramework/PlayerState.h"
 #include "GameFramework/Pawn.h" 
 #include "Characters/CPP_CharacterMovementComponent.h"
-
 
 UCPP_PlayerAttributeSet::UCPP_PlayerAttributeSet()
     : MaxSpeed(600.0f), MaxSpeedCrouch(200.0f)
@@ -73,7 +71,6 @@ FGameplayAttribute UCPP_PlayerAttributeSet::HealthAttribute()
     return FGameplayAttribute(Property);
 }
 
-//GameplayEffect によって属性が変化した後に呼び出されます。
 void UCPP_PlayerAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data)
 {
     Super::PostGameplayEffectExecute(Data);
@@ -82,16 +79,16 @@ void UCPP_PlayerAttributeSet::PostGameplayEffectExecute(const FGameplayEffectMod
 
     if (Attribute == MaxSpeedAttribute())
     {
-        #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
+#if WITH_EDITOR || UE_BUILD_DEVELOPMENT
         UE_LOG(LogTemp, Warning, TEXT("MaxSpeed changed to: %.2f"), GetMaxSpeed());
-        #endif
+#endif
         NotifyCharacterOfSpeedChange(GetMaxSpeed(), false);
     }
     else if (Attribute == MaxSpeedCrouchAttribute())
     {
-        #if WITH_EDITOR || UE_BUILD_DEVELOPMENT
+#if WITH_EDITOR || UE_BUILD_DEVELOPMENT
         UE_LOG(LogTemp, Warning, TEXT("MaxSpeedCrouch changed to: %.2f"), GetMaxSpeedCrouch());
-        #endif
+#endif
         NotifyCharacterOfSpeedChange(GetMaxSpeedCrouch(), true);
     }
     else if (Attribute == HealthAttribute())
@@ -117,38 +114,39 @@ void UCPP_PlayerAttributeSet::NotifyCharacterOfSpeedChange(float NewSpeed, bool 
 {
     if (AActor* Owner = GetOwningActor())
     {
-        ACPP_CharacterBase* Character = nullptr;
-        
+        ACPP_CharacterBase* CharacterBase = nullptr;
+
         // PlayerStateの場合、実際のCharacterを取得する必要がある
         if (APawn* OwnerPawn = Cast<APawn>(Owner))
         {
-            Character = Cast<ACPP_CharacterBase>(OwnerPawn);
+            CharacterBase = Cast<ACPP_CharacterBase>(OwnerPawn);
         }
         // PlayerStateを通してCharacterを取得
         else if (APlayerState* PS = Cast<APlayerState>(Owner))
         {
             if (APawn* Pawn = PS->GetPawn())
             {
-                Character = Cast<ACPP_CharacterBase>(Pawn);
+                CharacterBase = Cast<ACPP_CharacterBase>(Pawn);
             }
         }
 
-        if (Character)
+        // CharacterBaseの場合
+        if (CharacterBase)
         {
             // 実際のしゃがみ状態を取得
             bool bIsCurrentlyCrouching = false;
-            if (UCPP_CharacterMovementComponent* MovementComp = Character->GetCustomMovementComponent())
+            if (UCPP_CharacterMovementComponent* MovementComp = CharacterBase->GetCustomMovementComponent())
             {
                 bIsCurrentlyCrouching = MovementComp->IsCrouching();
             }
 
             if (bIsCrouchSpeed)
             {
-                Character->HandleMaxSpeedCrouchChanged(NewSpeed);
+                CharacterBase->HandleMaxSpeedCrouchChanged(NewSpeed);
             }
             else
             {
-                Character->HandleMaxSpeedChanged(NewSpeed);
+                CharacterBase->HandleMaxSpeedChanged(NewSpeed);
             }
         }
     }
@@ -163,13 +161,21 @@ void UCPP_PlayerAttributeSet::HandleHealthAttributeChange(const FGameplayEffectM
     SetHealth(NewHealth);
 
     // ターゲット情報取得
-    ACPP_CharacterBase* TargetCharacter = nullptr;
+    ACPP_CharacterBase* CharacterBase = nullptr;
+
     if (Data.Target.AbilityActorInfo.IsValid() && Data.Target.AbilityActorInfo->AvatarActor.IsValid())
     {
-        TargetCharacter = Cast<ACPP_CharacterBase>(Data.Target.AbilityActorInfo->AvatarActor.Get());
+        AActor* TargetActor = Data.Target.AbilityActorInfo->AvatarActor.Get();
+        CharacterBase = Cast<ACPP_CharacterBase>(TargetActor);
     }
 
-    if (!TargetCharacter || TargetCharacter->IsDead())
+    // CharacterBaseでない、または既に死亡している場合は早期リターン
+    if (!CharacterBase)
+    {
+        return;
+    }
+
+    if (CharacterBase->IsDead())
     {
         return;
     }
@@ -179,12 +185,13 @@ void UCPP_PlayerAttributeSet::HandleHealthAttributeChange(const FGameplayEffectM
     {
         const FGameplayTagContainer& SourceTags = *Data.EffectSpec.CapturedSourceTags.GetAggregatedTags();
         const float ActualDamage = FMath::Abs(DeltaValue);
-        TargetCharacter->HandleDamageReceived(ActualDamage, SourceTags);
+
+        CharacterBase->HandleDamageReceived(ActualDamage, SourceTags);
     }
 
     // 死亡判定
     if (GetHealth() <= 0.0f && PreviousHealth > 0.0f)
     {
-        TargetCharacter->HandleDeath();
+        CharacterBase->HandleDeath();
     }
 }
