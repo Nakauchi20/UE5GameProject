@@ -1,35 +1,39 @@
-# UE5 | GASPALS Project
-## What is this project?
-Yet another GASP extension project in a myriad of others. This one is focused primarily on first-person use with GASP and implementing old Advanced Locomotion System (ALS) overlay in a new and innovative way into the animation sample project. 
+# プロジェクト概要
+本プロジェクトは、GASPALS Projectをベースに構築した、一人称視点（FPS）のシューティングゲーム開発リポジトリです。
+Gameplay Ability System (GAS) を核とした拡張性の高いシステム設計と、StateTreeを用いた高度な敵AIの実装に注力しています。
+※リポジトリ軽量化のため、現在は**Source（C++コード）とConfig（プロジェクト設定）**を中心に公開しています。
 
-## Features
-- First-Person GASP template with several camera and movement options. From creating static camera FPS character with GASP body, to fully dynamic and immersive parkour character.
-- Improved overlay system with separate Pose and Overlay layers. Easily combine base character pose and full body overlay.
-- Seamlessly blends motion-matching movement with custom poses and overlays with only layering and animcurves.
-- ALS and City Sample poses and animations. Combine not only old ALS animations, but also newer CitySample poses and accessories.
-- Switching between FP and TP camera view.
-- Obligatory climb-anywhere traversal system. 
-- Custom widget to easily switch poses and overlays at runtime.
-- Small fixes and improvements, like a check to stop character running into a wall (it was driving me crazy) or automatic view lock during FPS traversal.
+---
 
-## Notes
-- This project does not contain any additional characters to reduce file size.  
-- If you want just modified files of this project, you can find them [Here](https://github.com/ShatteredMirrorStudio/GASPALS_FilesOnly)
-- Many of the blueprints and changes are commented, but lot of it is still a mess. Sorry.
-- Traversal component is based on https://github.com/PolygonHive/GASP-ALS  
+# 主な実装システム
+本プロジェクトでは、以下のシステムをC++およびGASを用いて構築しました。
 
-## Quick Start
-+ V to switch view  
-+ TAB to open overlay menu  
-+ +/- to change FPS camera type  
-+ Q to slow time
+## キャラクタームーブメント & アクション
+- スライディングシステムの実装
+- GASを用いた武器の射撃・リロード・切り替えシステム
+- GameplayTagによるキャラクター状態の厳密な管理
 
-## Support the project
-If you want to support the project and see it improve and grow in the future, consider:
-[Buy me a coffee](https://buymeacoffee.com/shatteredmirrorstudio)
+## AIシステム (StateTree & EQS)
+- StateTreeを利用した敵AIの意思決定ロジック
+- Environment Query System (EQS) による索敵・ポジショニング
 
-## License
-UE-Only Content - Licensed for Use Only with Unreal Engine-based Products  
-# 
-  
-Have fun! <3
+## ゲームフレームワーク
+- HealthComponentを活用したダメージ処理と体力管理
+- ProceduralChunkを用いたマップの自動生成
+- GameProgressSubsystemによるゲーム進行イベントの制御
+
+# 開発履歴とリポジトリ管理について
+過去の実装および最適化の内容です。これら全てのロジックは現在のソースコードに統合されています。
+
+## 戦闘システム
+- ADS（エイム）機能、弾種追加、銃声・ヒット音アセットの統合
+- リロードアニメーションの実装
+
+## システム基盤
+- AssetManager / GameInstance の独自拡張
+- LevelConfigDataAsset によるデータ駆動設計
+- 不要なバイナリの除外による軽量化
+
+## AI・環境
+- EnemyStats / CombatLibrary の構築
+- ChunkManager によるマップ生成の最適化
